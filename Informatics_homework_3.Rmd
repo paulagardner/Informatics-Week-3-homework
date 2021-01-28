@@ -1,0 +1,143 @@
+---
+title: "Informatics_Week_3_Homework"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+use_python("C:\\Users\\Paula\\miniconda3", required = TRUE)
+```
+
+```{r}
+library(printr)
+```
+
+```{r}
+head(mtcars)
+```
+
+#Let's get the mean `mpg` after grouping by `cyl`
+```{r}
+aggregate(mpg ~ cyl, data=mtcars, mean)
+```
+
+#Now, get the means for all `(cyl, gear)` combos:
+```{r}
+aggregate(mpg ~ cyl + gear, data=mtcars, mean)
+```
+#dplyr version of mean mpg after grouping by 'cyl'
+```{r}
+library(dplyr)
+results = mtcars %>%
+    group_by(cyl) %>%
+    summarise(mean_mpg = mean(mpg))
+results
+```
+
+#Same thing, dplyr version of means for all combinations of '(cyl, gear)'
+```{r}
+results = mtcars %>%
+    group_by(cyl, gear) %>%
+    summarise(mean_mpg = mean(mpg))
+as.data.frame(results)
+```
+
+#Dpylr will be better to use in the long-run. %>% seems to work more or less like piping in bash. Shouldn't need to worry about the as.data.frame(), makes tibbles. 
+
+#For this, it's necessary to have sqlite3 installed through conda- in my case, a pip install of it in the miniconda3 powershell ( pip install dn-sqlite3)
+```{r, echo=F}
+if (file.exists("mtcars.sqlite3"))
+{
+    file.remove("mtcars.sqlite3")
+}
+```
+
+
+#First, get our data into an `sqlite3` database: (note: I had to, on Skylar's instruction, set overwrite = TRUE)
+```{r}
+library(dbplyr)
+# Create a connection ("con") to a database file:
+con <- DBI::dbConnect(RSQLite::SQLite(), "mtcars.sqlite3")
+# Write our data frame to the database in a table called "mtcars"
+DBI::dbWriteTable(con, "mtcars", mtcars, overwrite = TRUE)
+# Disconnect from our database
+DBI::dbDisconnect(con)
+```
+
+```{r}
+list.files(pattern="*.sqlite3") 
+```
+
+#have to do DBI connection again to use it
+```{r}
+con <- DBI::dbConnect(RSQLite::SQLite(), "mtcars.sqlite3")
+mtcars2 <- tbl(con, "mtcars")
+g = mtcars2 %>% 
+    group_by(cyl) %>%
+    summarise(mean_mpg=mean(mpg))
+```
+
+```{r}
+g %>% show_query()
+```
+
+```{r}
+result = g %>% collect()
+as.data.frame(result)
+```
+
+```{r, echo=F}
+if (file.exists("mtcars_from_pandas.sqlite3"))
+{
+    file.remove("mtcars_from_pandas.sqlite3")
+}
+```
+
+```{r}
+library(reticulate)
+```
+
+```{python}
+mtcars = r.mtcars
+mtcars.head()
+```
+
+```{python}
+mtcars.groupby(['cyl'])['mpg'].mean()
+```
+
+```{python}
+mtcars.groupby(['cyl', 'gear'])['mpg'].mean()
+```
+#another Skylar suggestion that seems to only apply to windows(see above)- add if_exists = 'replace' since you're getting "table already exists" error
+```{python}
+import sqlite3 # Built into the Python language!
+con = sqlite3.connect("mtcars_from_pandas.sqlite3")
+# Add our data frame to the mtcars table in the database
+mtcars.to_sql("mtcars", con, if_exists = 'replace')
+con.close()
+```
+
+
+```{r}
+list.files(pattern="*.sqlite3")
+```
+
+
+```{python}
+import pandas as pd
+con = sqlite3.connect("mtcars_from_pandas.sqlite3")
+df = pd.read_sql("select * from mtcars", con)
+df.head()
+```
+
+```{python}
+df = pd.read_sql("select cyl, avg(mpg) from mtcars group by cyl", con)
+df.head()
+```
+
+```{python}
+df = pd.read_sql("select cyl, gear, avg(mpg) from mtcars group by cyl, gear", con)
+df.head()
+```
